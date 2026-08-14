@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: entitlements-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: entitlements
+      POSTGRES_USER: entitlements
+      POSTGRES_PASSWORD: entitlements
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U entitlements -d entitlements"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Lightweight DB browser so you can eyeball the schema/data without a client install.
+  # http://localhost:8081  (System: PostgreSQL, Server: db, Username/Password: entitlements, DB: entitlements)
+  adminer:
+    image: adminer:4.8.1
+    container_name: entitlements-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Backend (Spring Boot) and frontend (React) services land here in steps 2 & 3.
+
+volumes:
+  db-data:

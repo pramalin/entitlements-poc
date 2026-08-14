@@ -1,0 +1,28 @@
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# --- Docker ---
+# (bind-mounted db data lives in a named volume, not the repo - nothing to ignore there yet)
+
+# --- Java / Maven (step 2) ---
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# --- Node / React (step 3) ---
+node_modules/
+dist/
+build/
+.env
+.env.local
+
+# --- Secrets ---
+# Spring AI utility will need an LLM API key - never commit it
+**/application-local.yml
+**/*.env
+*.pem
