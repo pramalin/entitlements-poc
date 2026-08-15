@@ -52,6 +52,64 @@ docker compose run --rm llm-utility   # generates descriptions (run once)
 ```
 Then open `http://localhost:5173`.
 
+## LLM configuration
+
+The core architectural claim of this prototype: **the app stack never calls an LLM.**
+The LLM only runs inside a separate, manually-triggered batch job that writes to the
+database once — the running application just reads what's already there.
+
+```mermaid
+flowchart LR
+    subgraph DB["Postgres"]
+        ENT[("entitlements + applications<br/>(source: cryptic titles,<br/>types, raw metadata)")]
+        DESC[("entitlement_descriptions<br/>(target table)")]
+    end
+
+    subgraph Utility["llm-utility — run manually, once"]
+        READ["1. Read entitlements<br/>with no description yet"]
+        PROMPT["2. Build a prompt<br/>per entitlement"]
+        WRITE["4. Insert description<br/>+ risk note"]
+    end
+
+    GEN["3. LLM generates a plain-English<br/>description + optional risk note"]
+
+    API["Backend API<br/>(app stack, always running)"]
+
+    ENT --> READ --> PROMPT --> GEN --> WRITE --> DESC
+    DESC -.->|"read only - no LLM call"| API
+```
+
+Steps 1-4 all happen inside `llm-utility`, run manually, once (or again later if new
+entitlements are added). Step 3 is the only step that leaves the machine at all - a
+single prompt per entitlement, to whichever LLM is configured. The app stack's only
+connection to any of this is the dashed line at the bottom: a plain read of
+`entitlement_descriptions`, no LLM call, no dependency on `llm-utility` running or
+even existing.
+
+The `llm-utility` talks to whatever LLM you point it at via Spring AI's
+OpenAI-compatible client — meaning it works against **any server that speaks the
+OpenAI API shape**: a local vLLM/Ollama/LM Studio server, or a real cloud provider.
+Switching is an environment variable change, not a code change.
+
+**This repo is configured to default to a local vLLM server** — no API key, no cloud
+dependency, no per-call cost:
+
+| Variable | Default here | What it controls |
+|---|---|---|
+| `OPENAI_BASE_URL` | `http://192.168.1.251:8000/v1` | The server to talk to. **Must include `/v1`** for vLLM and most self-hosted OpenAI-compatible servers — unlike `api.openai.com`, where Spring AI adds `/v1` automatically, custom URLs are used literally. |
+| `OPENAI_API_KEY` | `not-needed` | Local servers generally don't check this. |
+| `OPENAI_MODEL` | `qwen/qwen3.5` | Must match a model ID the server actually serves — check `GET <base-url>/v1/models`. |
+
+To point at a different server (local or cloud), copy `llm-utility/.env.example` to
+`llm-utility/.env` and set these three — nothing else needs to change. This was also
+validated earlier in development against Claude (Anthropic's API) using Spring AI's
+Anthropic starter instead of the OpenAI one — swapping providers entirely is a
+one-dependency, few-line-of-config change, not a rewrite.
+
+See [`llm-utility/README.md`](llm-utility/README.md) for the full picture, including
+how the utility is deliberately isolated from the app stack as its own Compose
+project.
+
 ## Status and honest limitations
 
 This is a **proof of concept**, not a production system:
