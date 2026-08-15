@@ -25,7 +25,7 @@ public class LlmUtilityApplication {
     @Bean
     CommandLineRunner run(EntitlementRepository repository,
                            DescriptionGenerator generator,
-                           @Value("${spring.ai.anthropic.chat.options.model}") String modelName) {
+                           @Value("${spring.ai.openai.chat.model}") String modelName) {
         return args -> {
             List<EntitlementRow> pending = repository.findPending();
 

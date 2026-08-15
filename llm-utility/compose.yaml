@@ -19,8 +19,12 @@ services:
     environment:
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-5432}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file - see .env.example}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      # Local vLLM server by default. To switch to a cloud OpenAI-compatible
+      # provider later, override these three in .env - no code or rebuild needed
+      # beyond that.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://192.168.1.251:8000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-not-needed}
+      OPENAI_MODEL: ${OPENAI_MODEL:-qwen/qwen3.5}
     extra_hosts:
       # host.docker.internal resolves automatically on Docker Desktop (Windows/Mac/WSL2),
       # but this line makes it resolve on plain Linux Docker Engine too (e.g. a CI

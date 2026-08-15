@@ -16,11 +16,16 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   ai:
-    anthropic:
-      api-key: ${ANTHROPIC_API_KEY}
+    openai:
+      # Local vLLM server by default (OpenAI-compatible API) - switching to a cloud
+      # OpenAI-compatible provider later is just an env var change, no code change.
+      base-url: ${OPENAI_BASE_URL:http://192.168.1.251:8000}
+      # vLLM doesn't require real auth, but Spring AI's OpenAI client wants a
+      # non-blank api-key property regardless - "not-needed" is the documented
+      # convention for local/self-hosted OpenAI-compatible servers.
+      api-key: ${OPENAI_API_KEY:not-needed}
       chat:
-        options:
-          model: ${ANTHROPIC_MODEL:claude-sonnet-5}
+        model: ${OPENAI_MODEL:qwen/qwen3.5}
 
 logging:
   level:
