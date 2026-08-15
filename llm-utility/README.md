@@ -1,98 +1,170 @@
-# Entitlements POC — LLM Utility (Step 4)
+# Entitlement Access Viewer — Offline LLM Utility
 
-**Stack:** Java 25 · Spring Boot 4.1.0 · Spring AI 2.0.0 (OpenAI-compatible client, pointed at a local vLLM server by default) · plain JDBC (no JPA)
+Standalone Spring AI batch utility that enriches entitlement metadata with plain-English descriptions before the runtime application needs it.
 
-## What this is
+## Why this is separate
 
-This is the whole point of the original proposal: **descriptions are generated offline,
-once, and stored** - not fetched from an LLM every time someone hovers over an access
-title in the UI. This module is a standalone batch job, not a service:
+The central architectural decision in this POC is that an LLM should **not** be called whenever a reviewer opens an entitlement.
 
-- No web starter, no port, no `restart` policy.
-- Reads every row in `entitlements` that doesn't yet have a matching row in
-  `entitlement_descriptions`.
-- Asks the model (via Spring AI's `ChatClient`) to write a plain-English description,
-  plus an optional short risk note for anything meaningfully privileged (production
-  write access, financial approval authority, admin/sudo, bulk export,
-  segregation-of-duties conflicts like Diego's wire-initiate + wire-approve).
-- Writes the result to `entitlement_descriptions` and exits.
-- Safe to re-run: it only ever processes entitlements still missing a description, so
-  adding new entitlements later and re-running the utility just fills in the gaps.
+Instead, enrichment runs offline and writes reusable reference data to PostgreSQL.
 
-## Which model
+The utility is therefore:
 
-Defaults to a **local vLLM server** at `http://192.168.1.251:8000`, serving
-`qwen/qwen3.5` - Spring AI's OpenAI-compatible client works against any server that
-speaks the OpenAI API shape (vLLM, Ollama, LM Studio, or the real OpenAI/cloud APIs),
-so switching later is an environment variable change, not a code change:
+- a batch job, not a web service;
+- packaged in a separate Docker Compose project;
+- not required for the frontend or backend to run;
+- manually triggered when entitlement descriptions need to be generated.
 
-| Variable          | Default                        | What it controls                          |
-|--------------------|--------------------------------|--------------------------------------------|
-| `OPENAI_BASE_URL`  | `http://192.168.1.251:8000`    | The server to talk to (no `/v1` suffix - Spring AI adds that itself) |
-| `OPENAI_API_KEY`   | `not-needed`                   | Local servers usually don't check this; set a real key to use a cloud provider |
-| `OPENAI_MODEL`     | `qwen/qwen3.5`                 | Must match a model id the server actually serves - check `GET <base-url>/v1/models` |
+The runtime application simply reads the stored result.
+
+## Stack
+
+- Java 25
+- Spring Boot 4.1
+- Spring AI 2.0
+- Spring AI OpenAI-compatible client
+- plain JDBC
+- PostgreSQL
+
+## Processing flow
+
+For each entitlement that does not yet have a row in `entitlement_descriptions`, the utility:
+
+1. reads the entitlement and its application metadata;
+2. builds a prompt from the cryptic title, type, source system, and raw attributes;
+3. asks the configured model for:
+   - a concise plain-English description; and
+   - an optional risk hint when the entitlement itself is clearly privileged or sensitive;
+4. stores the result with the model name and generation timestamp;
+5. continues with the next entitlement;
+6. exits when processing is complete.
+
+## Important scope: risk hints are entitlement-level
+
+The model sees **one entitlement at a time**.
+
+A generated `riskNote` can therefore highlight characteristics such as:
+
+- production write or delete capability;
+- financial approval authority;
+- system or domain administration;
+- bulk-data export;
+- other clearly sensitive privileges visible in that entitlement's own metadata.
+
+The utility does **not** currently inspect a user's complete access set and does not perform deterministic segregation-of-duties analysis.
+
+For example, it can explain why *wire initiation* and *wire approval* are individually sensitive, but detecting that one user holds both is a separate policy-analysis capability and is outside this POC.
+
+## Incremental and restartable
+
+The utility selects only entitlements that are still missing a stored description.
+
+That makes it safe to rerun:
+
+- newly added entitlements are picked up;
+- already enriched entitlements are skipped;
+- failed items remain eligible for a later retry.
 
 ## Running it
 
-**This is a fully separate Docker Compose project from the app stack** - it has its
-own `compose.yaml` right here in this directory, not a service inside the root
-`compose.yaml`. That's deliberate: this is offline AI tooling used to prepare data,
-not something that would ever ship as part of the running application, and keeping it
-isolated leaves room to add MCP servers or other AI tooling here later without
-touching the app stack.
+### Prerequisite
 
-**Prerequisites:**
-1. The app stack must already be running (from the project root): `docker compose up -d`
-   - This utility reaches Postgres via the host-published port, not a shared Docker
-     network, since it's a separate Compose project.
-2. Your local vLLM server needs to be reachable from wherever Docker runs this
-   container - if it's on your LAN (like the default `192.168.1.251` above), that
-   should just work; no `.env` file is required for the local-server defaults.
+Start the application database from the repository root:
 
-Run it:
 ```bash
-docker compose run --rm llm-utility
-```
-(`--rm` cleans up the exited container automatically, since it's not meant to stick
-around like a service.)
-
-**Switching to a cloud provider later:** copy `.env.example` to `.env` and uncomment/
-fill in `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and `OPENAI_MODEL` for whichever provider
-you're using - no other changes needed.
-
-You'll see per-entitlement progress in the console, e.g.:
-```
-Generating descriptions for 25 entitlement(s) using qwen/qwen3.5...
-  [ok]     SAP_CO_COST_CTR_MAINT         Lets you create and edit cost centers used for...
-  [ok]     SAP_TREASURY_WIRE_INIT        Starts an outbound wire transfer for approval...
-           ⚠ Combined with wire-approve, bypasses maker-checker control
-  ...
-Done. 25 succeeded, 0 failed out of 25.
+docker compose up -d
 ```
 
-Then refresh the frontend (`http://localhost:5173`) - hovering over access titles now
-shows real descriptions instead of "No description generated yet."
+The LLM utility is deliberately a separate Compose project and reaches PostgreSQL through the host-published database port.
 
-## Running without Docker
+### Run the batch
+
 ```bash
 cd llm-utility
-export DB_HOST=localhost   # if Postgres isn't in a container
+docker compose run --rm llm-utility
+```
+
+The container exits when the batch completes.
+
+Then refresh:
+
+```text
+http://localhost:5173
+```
+
+The UI will display the newly stored descriptions.
+
+## Model configuration
+
+The checked-in POC defaults to a local vLLM server running Qwen3.5.
+
+Configuration is controlled with:
+
+| Variable | Default in this POC | Purpose |
+|---|---|---|
+| `OPENAI_BASE_URL` | `http://192.168.1.251:8000` | OpenAI-compatible server base URL |
+| `OPENAI_API_KEY` | `not-needed` | Credential expected by the client; local vLLM does not require real authentication here |
+| `OPENAI_MODEL` | `qwen/qwen3.5` | Model identifier exposed by the server |
+| `DB_HOST` | `host.docker.internal` in Compose | PostgreSQL host |
+| `DB_PORT` | `5432` | PostgreSQL port |
+
+For the verified local vLLM configuration used by this POC, set `OPENAI_BASE_URL` to the server root, for example:
+
+```text
+http://model-host:8000
+```
+
+Do not append `/v1` to the value used by this checked-in configuration.
+
+To override the defaults, copy:
+
+```bash
+cp .env.example .env
+```
+
+and edit the values.
+
+## Provider boundary
+
+The utility uses Spring AI's OpenAI-compatible client, so the enrichment module can be pointed at another compatible endpoint through configuration.
+
+That provider choice is isolated to this batch utility. The runtime frontend and backend remain unchanged.
+
+## Generated data
+
+Each successful enrichment stores:
+
+- `description`
+- optional `risk_note`
+- `generated_by_model`
+- `generated_at`
+
+in `entitlement_descriptions`.
+
+This gives the POC basic generation provenance while keeping the generated text outside the runtime model path.
+
+## Running without Docker
+
+With PostgreSQL accessible locally:
+
+```bash
+cd llm-utility
+export DB_HOST=localhost
 mvn spring-boot:run
 ```
-(No `OPENAI_*` exports needed for the local vLLM defaults; set them if pointing
-somewhere else.)
 
-## Notes
-- `spring.main.web-application-type: none` - explicit, though Spring Boot would infer
-  this anyway from the missing web starter.
-- `SpringApplication.exit(context)` + `System.exit(...)` in `main()` - this is what
-  makes `docker compose run` actually return control to your shell instead of hanging.
-  A plain `CommandLineRunner` finishing isn't enough on its own to guarantee JVM exit.
-- The prompt explicitly tells the model not to invent risk notes for routine access -
-  worth checking the actual output once you run it; if everything comes back flagged,
-  the prompt needs tightening.
-- **Not yet verified end-to-end in this environment** - Spring AI's Maven artifacts
-  need the same Maven Central access the backend needed, which isn't available in the
-  sandbox this was written in. The dependency coordinates and Spring Boot 4
-  compatibility were checked against Spring's official 2.0.0 GA announcement rather
-  than guessed, but `mvn package` here is the real test, same as it was for `backend`.
+Override the `OPENAI_*` variables as needed for the model endpoint you want to use.
+
+## Production considerations
+
+A production implementation would normally add governance around generated reference data, including:
+
+- review and approval before publication;
+- edit/override capability;
+- prompt and model version tracking;
+- regeneration policy;
+- quality checks;
+- audit history;
+- deterministic SoD/policy evaluation as a separate capability.
+
+Those concerns are intentionally outside this proof of concept.
