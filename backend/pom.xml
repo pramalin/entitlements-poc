@@ -53,6 +53,22 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
+    <!--
+      Compile (not test) scope, deliberately. This was originally test-scoped on
+      the theory that it was only needed for JdbcTemplateAutoConfiguration in
+      test sources - WRONG, confirmed by an actual container crash at runtime:
+      spring-boot-starter-data-jpa does NOT transitively pull in
+      DataSourceAutoConfiguration, so without this at compile/runtime scope,
+      Hibernate/JPA autoconfiguration fails to create a DataSource bean at all,
+      and every @Repository fails to wire (UserRepository, in this case).
+      Test-scope dependencies are stripped from the packaged jar, so this only
+      broke in the Docker container, not in `mvn spring-boot:run` on the host
+      where the class was presumably still resolvable from another scope.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-jdbc</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
@@ -64,18 +80,20 @@
       tried here and REMOVED - they register auto-configuration for every
       technology Spring Boot supports (gRPC, Thymeleaf, OAuth2, SAML2, Mustache...),
       and @WebMvcTest's context tried to resolve all of it, crashing with
-      ClassNotFoundException on org.springframework.grpc...GrpcServerStartedIEvent
+      ClassNotFoundException on org.springframework.grpc...GrpcServerStartedEvent
       (a type we have no dependency on). Declaring exact modules instead, confirmed
       against the real classes in the local .m2 cache:
         @DataJpaTest              -> spring-boot-data-jpa-test
         @WebMvcTest                -> spring-boot-webmvc-test
         @AutoConfigureTestDatabase  -> spring-boot-jdbc-test
-        JdbcTemplateAutoConfiguration -> spring-boot-jdbc (main module, test-scoped
-                                          since only referenced from test sources)
-      Per Spring's own migration guide, each of these "-test" modules brings
-      spring-boot-starter-test transitively, so it doesn't need to be declared
-      separately.
+      (spring-boot-jdbc itself moved to compile scope above - see that dependency's
+      comment for why.)
     -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-data-jpa-test</artifactId>
@@ -89,11 +107,6 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-jdbc-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-jdbc</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
