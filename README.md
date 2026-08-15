@@ -170,11 +170,11 @@ The model connection is controlled through environment variables:
 | `OPENAI_API_KEY` | API credential where required |
 | `OPENAI_MODEL` | Model identifier exposed by the endpoint |
 
-For the verified local vLLM setup in this POC, `OPENAI_BASE_URL` is the server root, for example:
+For the verified local vLLM setup in this POC, `OPENAI_BASE_URL` **must include `/v1`**
+- vLLM's actual routes live under `/v1/...`, and Spring AI uses custom base URLs
+literally rather than adding `/v1` itself (unlike its behavior for `api.openai.com`):
 
-```text
-http://model-host:8000
-```
+http://model-host:8000/v1
 
 The LLM provider affects only the offline enrichment utility. Changing it does not change the frontend or backend architecture.
 
