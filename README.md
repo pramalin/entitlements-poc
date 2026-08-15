@@ -65,31 +65,27 @@ Once enrichment has completed, viewing an entitlement requires **no LLM call**.
 
 This removes LLM inference latency and per-view inference cost from the interactive application and allows the runtime system to continue operating independently of the model.
 
-## Architecture
+## Architecture at a glance
 
-```mermaid
-flowchart LR
-    subgraph Offline["Offline enrichment — run on demand"]
-        JOB["LLM Enrichment Utility<br/>Spring AI batch job"]
-        MODEL["LLM Endpoint<br/>local or remote"]
+To keep the README easy to read on GitHub, the architecture is shown here as a compact text diagram rather than an interactive Mermaid graphic.
 
-        JOB -->|"prompt"| MODEL
-        MODEL -->|"description + risk hint"| JOB
-    end
+```text
+Offline enrichment path
+-----------------------
+PostgreSQL (entitlements missing descriptions)
+    -> LLM utility
+    -> LLM endpoint
+    -> LLM utility stores generated descriptions and risk hints
+    -> PostgreSQL
 
-    DB[("PostgreSQL<br/>entitlements + stored descriptions")]
+Runtime application path
+------------------------
+Browser UI
+    -> Spring Boot REST API
+    -> PostgreSQL
 
-    subgraph Runtime["Runtime application — no LLM calls"]
-        API["Spring Boot<br/>REST API"]
-        UI["React<br/>Access Viewer"]
-
-        UI -->|"REST"| API
-    end
-
-    DB -->|"entitlements missing descriptions"| JOB
-    JOB -->|"persist enrichment"| DB
-
-    API -->|"ordinary database reads"| DB
+Important runtime rule: the API reads stored descriptions only.
+There is no live LLM call during normal UI use.
 ```
 
 The important boundary is the separation between **offline enrichment** and **runtime access review**.
@@ -97,6 +93,12 @@ The important boundary is the separation between **offline enrichment** and **ru
 The Spring Boot API never invokes the model. It simply joins each user's access with descriptions already stored in the database.
 
 The LLM utility is also packaged as a separate Docker Compose project rather than as a service in the application stack.
+
+## Example UI
+
+The screenshot below shows the POC after offline enrichment has been run. Hovering over a cryptic entitlement shows the stored plain-English description and any entitlement-level risk hint.
+
+![Entitlement Access Viewer screenshot showing Marcus Webb's entitlements and a hover tooltip with a generated description and risk hint](docs/images/access-viewer-screenshot.png)
 
 ## What is implemented
 
@@ -254,6 +256,9 @@ entitlements-poc/
 │   ├── compose.yaml
 │   ├── pom.xml
 │   └── README.md
+├── docs/
+│   └── images/
+│       └── access-viewer-screenshot.png
 ├── compose.yaml
 └── README.md
 ```

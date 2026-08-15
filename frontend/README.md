@@ -12,6 +12,10 @@ For each selected user, the UI displays the user's entitlement access. Hovering 
 
 If a stored entitlement-level risk hint exists, the entitlement is visually flagged and the hint is shown in the tooltip.
 
+## Example screen
+
+![Entitlement Access Viewer screenshot showing generated descriptions and risk hints in a hover tooltip](../docs/images/access-viewer-screenshot.png)
+
 ## Stack
 
 - React 19
