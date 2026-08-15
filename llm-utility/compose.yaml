@@ -1,0 +1,28 @@
+# Deliberately a SEPARATE Compose project from the app stack's root compose.yaml -
+# not a service tucked inside it. This is AI tooling used to prepare data offline,
+# not part of what would ever ship to production. Keeping it in its own file also
+# gives this stack room to grow (e.g. an MCP server) without touching the app stack.
+#
+# Because this is a separate Compose project, it does NOT share a Docker network
+# with the main stack - it reaches Postgres via the host-published port (5432,
+# exposed by the root compose.yaml's `db` service) rather than a container-to-
+# container network hop. The root stack must already be running:
+#   (from the project root)   docker compose up -d
+#
+# Run this utility with:
+#   (from this directory)     docker compose run --rm llm-utility
+
+services:
+  llm-utility:
+    build: .
+    container_name: entitlements-llm-utility
+    environment:
+      DB_HOST: ${DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-5432}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file - see .env.example}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+    extra_hosts:
+      # host.docker.internal resolves automatically on Docker Desktop (Windows/Mac/WSL2),
+      # but this line makes it resolve on plain Linux Docker Engine too (e.g. a CI
+      # runner), so the same compose file works in both places.
+      - "host.docker.internal:host-gateway"
