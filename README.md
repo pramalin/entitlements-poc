@@ -67,26 +67,9 @@ This removes LLM inference latency and per-view inference cost from the interact
 
 ## Architecture at a glance
 
-To keep the README easy to read on GitHub, the architecture is shown here as a compact text diagram rather than an interactive Mermaid graphic.
+The diagram below shows the key architectural boundary in the POC.
 
-```text
-Offline enrichment path
------------------------
-PostgreSQL (entitlements missing descriptions)
-    -> LLM utility
-    -> LLM endpoint
-    -> LLM utility stores generated descriptions and risk hints
-    -> PostgreSQL
-
-Runtime application path
-------------------------
-Browser UI
-    -> Spring Boot REST API
-    -> PostgreSQL
-
-Important runtime rule: the API reads stored descriptions only.
-There is no live LLM call during normal UI use.
-```
+![Architecture diagram showing two paths: an offline enrichment path where PostgreSQL feeds the LLM utility, which calls an LLM endpoint and stores generated descriptions back into PostgreSQL; and a runtime application path where the browser UI calls the Spring Boot REST API, which reads stored descriptions from PostgreSQL, with no live LLM call during normal UI use](docs/images/architecture-diagram.png)
 
 The important boundary is the separation between **offline enrichment** and **runtime access review**.
 
@@ -99,6 +82,10 @@ The LLM utility is also packaged as a separate Docker Compose project rather tha
 The screenshot below shows the POC after offline enrichment has been run. Hovering over a cryptic entitlement shows the stored plain-English description and any entitlement-level risk hint.
 
 ![Entitlement Access Viewer screenshot showing Marcus Webb's entitlements and a hover tooltip with a generated description and risk hint](docs/images/access-viewer-screenshot.png)
+
+## Solution overview
+
+![Solution overview for Entitlement Access Viewer showing the problem, approach, why it matters, an example UI screenshot, and a simplified architecture flow](docs/images/client-summary-slide.png)
 
 ## What is implemented
 
@@ -258,7 +245,9 @@ entitlements-poc/
 │   └── README.md
 ├── docs/
 │   └── images/
-│       └── access-viewer-screenshot.png
+│       ├── access-viewer-screenshot.png
+│       ├── architecture-diagram.png
+│       └── client-summary-slide.png
 ├── compose.yaml
 └── README.md
 ```
