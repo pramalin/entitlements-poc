@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: entitlements-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/entitlements
+    username: entitlements
+    password: entitlements
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    # init.sql (docker-compose step 1) owns the schema - Hibernate must never try to manage it.
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.alai.entitlements: INFO
