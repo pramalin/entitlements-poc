@@ -69,7 +69,7 @@ This removes LLM inference latency and per-view inference cost from the interact
 
 The diagram below shows the key architectural boundary in the POC.
 
-![Architecture diagram showing two paths: an offline enrichment path where PostgreSQL feeds the LLM utility, which calls an LLM endpoint and stores generated descriptions back into PostgreSQL; and a runtime application path where the browser UI calls the Spring Boot REST API, which reads stored descriptions from PostgreSQL, with no live LLM call during normal UI use](docs/images/architecture-diagram.png)
+![Architecture diagram showing two paths: an offline enrichment path where PostgreSQL feeds the LLM utility, which calls an LLM endpoint and stores generated descriptions back into PostgreSQL; and a runtime application path where the browser UI calls the Spring Boot REST API, which reads stored descriptions from PostgreSQL, with no live LLM call during normal UI use](./docs/images/architecture-diagram.png)
 
 The important boundary is the separation between **offline enrichment** and **runtime access review**.
 
@@ -81,11 +81,11 @@ The LLM utility is also packaged as a separate Docker Compose project rather tha
 
 The screenshot below shows the POC after offline enrichment has been run. Hovering over a cryptic entitlement shows the stored plain-English description and any entitlement-level risk hint.
 
-![Entitlement Access Viewer screenshot showing Marcus Webb's entitlements and a hover tooltip with a generated description and risk hint](docs/images/access-viewer-screenshot.png)
+![Entitlement Access Viewer screenshot showing Marcus Webb's entitlements and a hover tooltip with a generated description and risk hint](./docs/images/access-viewer-screenshot.png)
 
 ## Solution overview
 
-![Solution overview for Entitlement Access Viewer showing the problem, approach, why it matters, an example UI screenshot, and a simplified architecture flow](docs/images/client-summary-slide.png)
+![Solution overview for Entitlement Access Viewer showing the problem, approach, why it matters, an example UI screenshot, and a simplified architecture flow](./docs/images/client-summary-slide.png)
 
 ## What is implemented
 
